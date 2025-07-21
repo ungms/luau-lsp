@@ -2,11 +2,13 @@ name: Generate new release (manual)
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "New Version (without leading v)"
-        required: true
-        type: string
+    # inputs:
+    #   version:
+    #     description: "New Version (without leading v)"
+    #     required: true
+    #     type: string
+
+# Disabled since it requires an app to be setup and I don't have permissions to do that
 
 jobs:
   generate-release:

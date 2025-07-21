@@ -2,8 +2,10 @@ name: Nightly Release
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *" # Runs at 00:00 UTC every day
+#   schedule:
+#     - cron: "0 0 * * *" # Runs at 00:00 UTC every day
+
+# We don't need a nightly release for now
 
 env:
   MACOSX_DEPLOYMENT_TARGET: "10.15"

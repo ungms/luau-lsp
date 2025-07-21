@@ -2,8 +2,10 @@ name: Update Luau Version
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "10 0 * * *" # Runs at 00:10 UTC every day
+#   schedule:
+#     - cron: "10 0 * * *" # Runs at 00:10 UTC every day
+
+# Disabled since it requires an app to be setup and I don't have permissions to do that
 
 jobs:
   sync:
