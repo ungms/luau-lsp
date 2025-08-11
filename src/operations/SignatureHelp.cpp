@@ -1,5 +1,4 @@
 #include "LSP/Workspace.hpp"
-#include "LSP/LanguageServer.hpp"
 
 #include "Luau/AstQuery.h"
 #include "Luau/Normalize.h"
@@ -50,7 +49,8 @@ static bool checkOverloadMatch(Luau::TypePackId subTp, Luau::TypePackId superTp,
     }
 }
 
-std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::SignatureHelpParams& params)
+std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(
+    const lsp::SignatureHelpParams& params, const LSPCancellationToken& cancellationToken)
 {
     auto config = client->getConfiguration(rootUri);
 
@@ -65,7 +65,8 @@ std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::Sign
 
     // Run the type checker to ensure we are up to date
     // TODO: expressiveTypes - remove "forAutocomplete" once the types have been fixed
-    checkStrict(moduleName);
+    checkStrict(moduleName, cancellationToken);
+    throwIfCancelled(cancellationToken);
 
     auto sourceModule = frontend.getSourceModule(moduleName);
     if (!sourceModule)
@@ -247,10 +248,4 @@ std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::Sign
     platform->handleSignatureHelp(*textDocument, *sourceModule, position, help);
 
     return help;
-}
-
-std::optional<lsp::SignatureHelp> LanguageServer::signatureHelp(const lsp::SignatureHelpParams& params)
-{
-    auto workspace = findWorkspace(params.textDocument.uri);
-    return workspace->signatureHelp(params);
 }

@@ -1,5 +1,4 @@
 #include "LSP/Workspace.hpp"
-#include "LSP/LanguageServer.hpp"
 
 #include "Luau/AstQuery.h"
 #include "LSP/LuauExt.hpp"
@@ -63,7 +62,7 @@ static std::optional<LocationInformation> findLocationForExpr(
     return std::nullopt;
 }
 
-lsp::DefinitionResult WorkspaceFolder::gotoDefinition(const lsp::DefinitionParams& params)
+lsp::DefinitionResult WorkspaceFolder::gotoDefinition(const lsp::DefinitionParams& params, const LSPCancellationToken& cancellationToken)
 {
     lsp::DefinitionResult result{};
 
@@ -74,7 +73,8 @@ lsp::DefinitionResult WorkspaceFolder::gotoDefinition(const lsp::DefinitionParam
     auto position = textDocument->convertPosition(params.position);
 
     // Run the type checker to ensure we are up to date
-    checkStrict(moduleName);
+    checkStrict(moduleName, cancellationToken);
+    throwIfCancelled(cancellationToken);
 
     auto sourceModule = frontend.getSourceModule(moduleName);
     // TODO: fix "forAutocomplete"
@@ -210,7 +210,8 @@ lsp::DefinitionResult WorkspaceFolder::gotoDefinition(const lsp::DefinitionParam
     return result;
 }
 
-std::optional<lsp::Location> WorkspaceFolder::gotoTypeDefinition(const lsp::TypeDefinitionParams& params)
+std::optional<lsp::Location> WorkspaceFolder::gotoTypeDefinition(
+    const lsp::TypeDefinitionParams& params, const LSPCancellationToken& cancellationToken)
 {
     // If its a binding, we should find its assigned type if possible, and then find the definition of that type
     // If its a type, then just find the definintion of that type (i.e. the type alias)
@@ -222,7 +223,8 @@ std::optional<lsp::Location> WorkspaceFolder::gotoTypeDefinition(const lsp::Type
     auto position = textDocument->convertPosition(params.position);
 
     // Run the type checker to ensure we are up to date
-    checkStrict(moduleName);
+    checkStrict(moduleName, cancellationToken);
+    throwIfCancelled(cancellationToken);
 
     auto sourceModule = frontend.getSourceModule(moduleName);
     // TODO: fix "forAutocomplete"
@@ -305,16 +307,4 @@ std::optional<lsp::Location> WorkspaceFolder::gotoTypeDefinition(const lsp::Type
     }
 
     return std::nullopt;
-}
-
-lsp::DefinitionResult LanguageServer::gotoDefinition(const lsp::DefinitionParams& params)
-{
-    auto workspace = findWorkspace(params.textDocument.uri);
-    return workspace->gotoDefinition(params);
-}
-
-std::optional<lsp::Location> LanguageServer::gotoTypeDefinition(const lsp::TypeDefinitionParams& params)
-{
-    auto workspace = findWorkspace(params.textDocument.uri);
-    return workspace->gotoTypeDefinition(params);
 }

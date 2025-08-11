@@ -8,8 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- Sync to upstream Luau 0.683
+- Sync to upstream Luau 0.686
+
+### Fixed
+
+- Fixed crash due to an internal data race when managing cancellation tokens
+- Fixed server failing to start up due to incorrectly handling string-based RPC message
+  IDs ([#1175](https://github.com/JohnnyMorganz/luau-lsp/issues/1175))
+
+## [1.53.1] - 2025-07-31
+
+### Fixed
+
+- Fixed crash on server shutdown due to deadlock
+- Fixed crashes on macOS due to small thread stack sizes causing stack overflows in Luau typechecking
+
+## [1.53.0] - 2025-07-26
+
+### Added
+
+- The language server now supports cancellation notifications from the client. This should help in cases where the
+  server is stuck waiting for typechecking to complete.
+- Emit error cause when fetching fails to download API types
+
+### Changed
+
+- Sync to upstream Luau 0.684
 - The release artifact for Linux x86_64 is renamed from `luau-lsp-linux.zip` to `luau-lsp-linux-x86_64.zip`
+
+### Fixed
+
+- Autocomplete now properly respects Luau's ParenthesesRecommendation and puts the cursor inside of the parentheses when
+  autocompleting a function call where the arguments are all optional / any (e.g., `require()` or
+  `wait()`) ([#317](https://github.com/JohnnyMorganz/luau-lsp/issues/317))
+- Fixed autocomplete of function calls in new solver not inserting parameter names if the parameters do not have a type
+  annotation
 
 ## [1.52.1] - 2025-07-12
 
@@ -1380,7 +1413,6 @@ local y = tbl.data -- Should give "This is some special information"
 ### Added
 
 - Added configuration options to enable certain Language Server features. By default, they are all enabled:
-
   - `luau-lsp.completion.enabled`: Autocomplete
   - `luau-lsp.hover.enabled`: Hover
   - `luau-lsp.signatureHelp.enabled`: Signature Help
