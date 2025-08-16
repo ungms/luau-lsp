@@ -1,3 +1,17 @@
+### Fork information
+
+This is a fork of luau lsp with changes specific to the unnamed games workflow.
+
+Changes from upstream luau lsp:
+
+* Support for `Overture:LoadLibrary` calls
+
+TODO:
+
+* Library autocomplete/suggest
+
+* Overture importer
+
 # Luau Language Server
 
 An implementation of a language server for the [Luau](https://github.com/Roblox/luau) programming language.
