@@ -9,7 +9,6 @@
 #include "Luau/TimeTrace.h"
 
 #include "LSP/Completion.hpp"
-#include "LSP/LanguageServer.hpp"
 #include "LSP/Workspace.hpp"
 #include "LSP/LuauExt.hpp"
 #include "LSP/DocumentationParser.hpp"
@@ -294,6 +293,8 @@ static std::optional<lsp::CompletionItemKind> entryKind(const std::string& label
             return lsp::CompletionItemKind::Folder;
         return lsp::CompletionItemKind::File;
     }
+    case Luau::AutocompleteEntryKind::HotComment:
+        return lsp::CompletionItemKind::Snippet;
     }
 
     return std::nullopt;
@@ -357,6 +358,11 @@ static std::pair<std::string, std::string> computeLabelDetailsForFunction(const 
 
     auto [minCount, _] = Luau::getParameterExtents(Luau::TxnLog::empty(), ftv->argTypes, true);
 
+    // Include 'unknown' arguments as required types
+    for (auto arg : ftv->argTypes)
+        if (Luau::get<Luau::UnknownType>(follow(arg)))
+            minCount += 1;
+
     auto it = Luau::begin(ftv->argTypes);
     for (; it != Luau::end(ftv->argTypes); ++it, ++argIndex)
     {
@@ -394,14 +400,22 @@ static std::pair<std::string, std::string> computeLabelDetailsForFunction(const 
         detail += Luau::toString(*tail);
     }
 
+    // If Luau recommended we put the cursor inside, but we haven't recorded any arguments yet, then we are going to fail to do this.
+    // This can happen when all the arguments to function are optional or any (e.g., wait or require)
+    // Let's force a tabstop inside if this happens
+    if (entry.parens == Luau::ParenthesesRecommendation::CursorInside && parenthesesSnippet == "(")
+    {
+        parenthesesSnippet += "$1";
+    }
+
     detail += ")";
     parenthesesSnippet += ")";
 
     return std::make_pair(detail, parenthesesSnippet);
 }
 
-std::optional<std::string> WorkspaceFolder::getDocumentationForAutocompleteEntry(
-    const std::string& name, const Luau::AutocompleteEntry& entry, const std::vector<Luau::AstNode*>& ancestry, const Luau::ModulePtr& localModule)
+std::optional<std::string> WorkspaceFolder::getDocumentationForAutocompleteEntry(const std::string& name, const Luau::AutocompleteEntry& entry,
+    const std::vector<Luau::AstNode*>& ancestry, const Luau::ModulePtr& localModule, const Luau::Position& position)
 {
     if (entry.documentationSymbol)
         if (auto docs = printDocumentation(client->documentation, *entry.documentationSymbol))
@@ -410,6 +424,18 @@ std::optional<std::string> WorkspaceFolder::getDocumentationForAutocompleteEntry
     if (entry.type.has_value())
         if (auto documentation = getDocumentationForType(entry.type.value()))
             return documentation;
+
+    if (entry.kind == Luau::AutocompleteEntryKind::Type)
+    {
+        std::optional<Luau::AstName> importedPrefix = std::nullopt;
+        if (auto node = ancestry.back())
+            if (auto typeReference = node->as<Luau::AstTypeReference>())
+                importedPrefix = typeReference->prefix;
+
+        auto scope = Luau::findScopeAtPosition(*localModule, position);
+        if (auto documentation = getDocumentationForTypeReference(localModule->name, scope, importedPrefix, name, /* forAutocomplete= */ true))
+            return documentation;
+    }
 
     if (entry.prop)
     {
@@ -431,6 +457,13 @@ std::optional<std::string> WorkspaceFolder::getDocumentationForAutocompleteEntry
                         parentTy = localModule->astTypes.find(indexName->expr);
                     else if (auto indexExpr = node->as<Luau::AstExprIndexExpr>())
                         parentTy = localModule->astTypes.find(indexExpr->expr);
+                    else if (node->is<Luau::AstExprGlobal>())
+                    {
+                        // potentially autocompleting a property inside of a table literal
+                        if (ancestry.size() > 2)
+                            if (auto table = ancestry[ancestry.size() - 2]->as<Luau::AstExprTable>())
+                                parentTy = localModule->astTypes.find(table);
+                    }
                 }
 
                 if (parentTy)
@@ -460,7 +493,7 @@ std::optional<std::string> WorkspaceFolder::getDocumentationForAutocompleteEntry
     return std::nullopt;
 }
 
-std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::CompletionParams& params)
+std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::CompletionParams& params, const LSPCancellationToken& cancellationToken)
 {
     LUAU_TIMETRACE_SCOPE("WorkspaceFolder::completion", "LSP");
     auto config = client->getConfiguration(rootUri);
@@ -505,6 +538,7 @@ std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::Completi
             frontendOptions.runLintChecks = true;
         else
             frontendOptions.forAutocomplete = true;
+        frontendOptions.cancellationToken = cancellationToken;
 
         // Get parse information for this script
         frontend.parse(moduleName);
@@ -523,6 +557,7 @@ std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::Completi
         // It is important to keep the fragmentResult in scope for the whole completion step
         // Otherwise the incremental module may de-allocate leading to a use-after-free when accessing the result ancestry
         fragmentStatusResult = Luau::tryFragmentAutocomplete(frontend, moduleName, position, fragmentContext, stringCompletionCB);
+        throwIfCancelled(cancellationToken);
         if (fragmentStatusResult.status == Luau::FragmentAutocompleteStatus::Success)
         {
             // Result is nullopt if there are no suggestions (i.e. comments)
@@ -537,7 +572,10 @@ std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::Completi
     if (!fragmentWasSuccessful)
     {
         // We must perform check before autocompletion
-        checkStrict(moduleName, forAutocomplete);
+        checkStrict(moduleName, cancellationToken, forAutocomplete);
+
+        throwIfCancelled(cancellationToken);
+
         result = Luau::autocomplete(frontend, moduleName, position, stringCompletionCB);
     }
 
@@ -564,7 +602,7 @@ std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::Completi
         }
 
         const auto localModule = fragmentWasSuccessful ? fragmentStatusResult.result->incrementalModule : getModule(moduleName, forAutocomplete);
-        if (auto documentationString = getDocumentationForAutocompleteEntry(name, entry, result.ancestry, localModule))
+        if (auto documentationString = getDocumentationForAutocompleteEntry(name, entry, result.ancestry, localModule, position))
             item.documentation = {lsp::MarkupKind::Markdown, documentationString.value()};
 
         item.deprecated = deprecated(entry, item.documentation);
@@ -729,10 +767,4 @@ std::vector<lsp::CompletionItem> WorkspaceFolder::completion(const lsp::Completi
     }
 
     return items;
-}
-
-std::vector<lsp::CompletionItem> LanguageServer::completion(const lsp::CompletionParams& params)
-{
-    auto workspace = findWorkspace(params.textDocument.uri);
-    return workspace->completion(params);
 }

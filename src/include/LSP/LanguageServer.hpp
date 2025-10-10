@@ -1,4 +1,6 @@
 #include <optional>
+#include <queue>
+#include <condition_variable>
 
 #include "LSP/JsonRpc.hpp"
 #include "nlohmann/json.hpp"
@@ -8,6 +10,8 @@
 
 #include "LSP/Client.hpp"
 #include "LSP/Workspace.hpp"
+
+#include "Thread.hpp"
 
 using json = nlohmann::json;
 using namespace json_rpc;
@@ -43,14 +47,9 @@ private:
     std::vector<json_rpc::JsonRpcMessage> configPostponedMessages;
 
 public:
-    explicit LanguageServer(Client* aClient, std::optional<Luau::Config> aDefaultConfig)
-        : client(aClient)
-        , defaultConfig(std::move(aDefaultConfig))
-        , nullWorkspace(std::make_shared<WorkspaceFolder>(client, "$NULL_WORKSPACE", Uri(), defaultConfig))
-    {
-    }
+    explicit LanguageServer(Client* aClient, std::optional<Luau::Config> aDefaultConfig);
 
-    lsp::ServerCapabilities getServerCapabilities();
+    static lsp::ServerCapabilities getServerCapabilities();
 
     /// Finds the workspace which the file belongs to.
     /// If no workspace is found, the file is attached to the null workspace
@@ -61,10 +60,17 @@ public:
     void processInputLoop();
     bool requestedShutdown();
 
+    // Visible for testing only
+    void handleMessage(const json_rpc::JsonRpcMessage& msg);
+
+    // Visible for testing only
+    void shutdown();
+
     // Dispatch handlers
 private:
     bool allWorkspacesReceivedConfiguration() const;
-    void handleMessage(const json_rpc::JsonRpcMessage& msg);
+    void clearCancellationToken(const json_rpc::JsonRpcMessage& msg);
+    std::optional<json_rpc::JsonRpcMessage> popMessage();
 
     lsp::InitializeResult onInitialize(const lsp::InitializeParams& params);
     void onInitialized([[maybe_unused]] const lsp::InitializedParams& params);
@@ -77,26 +83,21 @@ private:
     void onDidChangeWorkspaceFolders(const lsp::DidChangeWorkspaceFoldersParams& params);
     void onDidChangeWatchedFiles(const lsp::DidChangeWatchedFilesParams& params);
 
-    std::vector<lsp::CompletionItem> completion(const lsp::CompletionParams& params);
     std::vector<lsp::DocumentLink> documentLink(const lsp::DocumentLinkParams& params);
     lsp::DocumentColorResult documentColor(const lsp::DocumentColorParams& params);
     lsp::ColorPresentationResult colorPresentation(const lsp::ColorPresentationParams& params);
     lsp::CodeActionResult codeAction(const lsp::CodeActionParams& params);
 
-    std::optional<lsp::Hover> hover(const lsp::HoverParams& params);
-    std::optional<lsp::SignatureHelp> signatureHelp(const lsp::SignatureHelpParams& params);
-    lsp::DefinitionResult gotoDefinition(const lsp::DefinitionParams& params);
-    std::optional<lsp::Location> gotoTypeDefinition(const lsp::TypeDefinitionParams& params);
-    lsp::ReferenceResult references(const lsp::ReferenceParams& params);
     std::optional<std::vector<lsp::DocumentSymbol>> documentSymbol(const lsp::DocumentSymbolParams& params);
-    lsp::RenameResult rename(const lsp::RenameParams& params);
-    lsp::InlayHintResult inlayHint(const lsp::InlayHintParams& params);
-    std::optional<lsp::SemanticTokens> semanticTokens(const lsp::SemanticTokensParams& params);
-    lsp::DocumentDiagnosticReport documentDiagnostic(const lsp::DocumentDiagnosticParams& params);
     lsp::PartialResponse<lsp::WorkspaceDiagnosticReport> workspaceDiagnostic(const lsp::WorkspaceDiagnosticParams& params);
-    Response onShutdown([[maybe_unused]] const id_type& id);
 
 private:
     bool isInitialized = false;
     bool shutdownRequested = false;
+
+    std::mutex messagesMutex;
+    std::condition_variable messagesCv;
+    std::queue<json_rpc::JsonRpcMessage> messages;
+    Thread messageProcessorThread;
+    std::unordered_map<id_type, LSPCancellationToken> cancellationTokens;
 };

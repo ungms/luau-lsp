@@ -917,7 +917,8 @@
                             "Type": {
                                 "Category": "Enum",
                                 "Name": "RotationOrder"
-                            }
+                            },
+                            "Default": "nil"
                         }
                     ],
                     "ReturnType": {
@@ -2500,6 +2501,37 @@
                 }
             ],
             "Name": "Path2DControlPoint"
+        },
+        {
+            "Members": [
+                {
+                    "MemberType": "Function",
+                    "Name": "new",
+                    "Parameters": [
+                        {
+                            "Name": "capabilities",
+                            "Type": {
+                                "Variadic": {
+                                    "Category": "Enum",
+                                    "Name": "SecurityCapability"
+                                }
+                            }
+                        }
+                    ],
+                    "ReturnType": {
+                        "Name": "SecurityCapabilities"
+                    }
+                },
+                {
+                    "MemberType": "Function",
+                    "Name": "fromCurrent",
+                    "Parameters": [],
+                    "ReturnType": {
+                        "Name": "SecurityCapabilities"
+                    }
+                }
+            ],
+            "Name": "SecurityCapabilities"
         }
     ],
     "DataTypes": [
@@ -5364,6 +5396,65 @@
                 }
             ],
             "Name": "Path2DControlPoint"
+        },
+        {
+            "Members": [
+                {
+                    "MemberType": "Function",
+                    "Name": "Add",
+                    "Parameters": [
+                        {
+                            "Name": "capabilities",
+                            "Type": {
+                                "Tuple": {
+                                    "Category": "Enum",
+                                    "Name": "SecurityCapability"
+                                }
+                            }
+                        }
+                    ],
+                    "ReturnType": {
+                        "Name": "SecurityCapabilities"
+                    }
+                },
+                {
+                    "MemberType": "Function",
+                    "Name": "Remove",
+                    "Parameters": [
+                        {
+                            "Name": "capabilities",
+                            "Type": {
+                                "Tuple": {
+                                    "Category": "Enum",
+                                    "Name": "SecurityCapability"
+                                }
+                            }
+                        }
+                    ],
+                    "ReturnType": {
+                        "Name": "SecurityCapabilities"
+                    }
+                },
+                {
+                    "MemberType": "Function",
+                    "Name": "Contains",
+                    "Parameters": [
+                        {
+                            "Name": "capabilities",
+                            "Type": {
+                                "Tuple": {
+                                    "Category": "Enum",
+                                    "Name": "SecurityCapability"
+                                }
+                            }
+                        }
+                    ],
+                    "ReturnType": {
+                        "Name": "SecurityCapabilities"
+                    }
+                }
+            ],
+            "Name": "SecurityCapabilities"
         }
     ]
 }

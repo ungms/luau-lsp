@@ -1,5 +1,4 @@
 #include "LSP/Workspace.hpp"
-#include "LSP/LanguageServer.hpp"
 
 #include "Luau/AstQuery.h"
 #include "Luau/Normalize.h"
@@ -10,6 +9,7 @@
 
 LUAU_FASTINT(LuauTypeInferRecursionLimit)
 LUAU_FASTINT(LuauTypeInferIterationLimit)
+LUAU_FASTFLAG(LuauPassBindableGenericsByReference)
 
 // Taken from Luau/Autocomplete.cpp
 static bool checkOverloadMatch(Luau::TypePackId subTp, Luau::TypePackId superTp, Luau::NotNull<Luau::Scope> scope, Luau::TypeArena* typeArena,
@@ -36,7 +36,10 @@ static bool checkOverloadMatch(Luau::TypePackId subTp, Luau::TypePackId superTp,
         // DEVIATION: the flip for superTp and subTp is expected
         // subTp is our custom created type pack, with a trailing ...any
         // so it is actually more general than superTp - we want to check if superTp can match against it.
-        return subtyping.isSubtype(superTp, subTp, scope).isSubtype;
+        if (FFlag::LuauPassBindableGenericsByReference)
+            return subtyping.isSubtype(superTp, subTp, scope, {}).isSubtype;
+        else
+            return subtyping.isSubtype_DEPRECATED(superTp, subTp, scope).isSubtype;
     }
     else
     {
@@ -50,7 +53,8 @@ static bool checkOverloadMatch(Luau::TypePackId subTp, Luau::TypePackId superTp,
     }
 }
 
-std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::SignatureHelpParams& params)
+std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(
+    const lsp::SignatureHelpParams& params, const LSPCancellationToken& cancellationToken)
 {
     auto config = client->getConfiguration(rootUri);
 
@@ -65,7 +69,8 @@ std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::Sign
 
     // Run the type checker to ensure we are up to date
     // TODO: expressiveTypes - remove "forAutocomplete" once the types have been fixed
-    checkStrict(moduleName);
+    checkStrict(moduleName, cancellationToken);
+    throwIfCancelled(cancellationToken);
 
     auto sourceModule = frontend.getSourceModule(moduleName);
     if (!sourceModule)
@@ -247,10 +252,4 @@ std::optional<lsp::SignatureHelp> WorkspaceFolder::signatureHelp(const lsp::Sign
     platform->handleSignatureHelp(*textDocument, *sourceModule, position, help);
 
     return help;
-}
-
-std::optional<lsp::SignatureHelp> LanguageServer::signatureHelp(const lsp::SignatureHelpParams& params)
-{
-    auto workspace = findWorkspace(params.textDocument.uri);
-    return workspace->signatureHelp(params);
 }

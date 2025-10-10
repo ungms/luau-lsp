@@ -20,6 +20,8 @@ import {
   registerComputeCompilerRemarks,
 } from "./bytecode";
 
+import { registerRequireGraph } from "./requireGraph";
+
 import * as roblox from "./roblox";
 import * as utils from "./utils";
 
@@ -255,19 +257,6 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
     fflags["LuauSolverV2"] = "true";
   }
 
-  if (
-    vscode.workspace
-      .getConfiguration("luau-lsp.completion")
-      .get<boolean>("enableFragmentAutocomplete")
-  ) {
-    fflags["LuauBetterScopeSelection"] = "true";
-    fflags["LuauBlockDiffFragmentSelection"] = "true";
-    fflags["LuauFragmentAcMemoryLeak"] = "true";
-    fflags["LuauGlobalVariableModuleIsolation"] = "true";
-    fflags["LuauFragmentAutocompleteIfRecommendations"] = "true";
-    fflags["LuauPopulateRefinedTypesInFragmentFromOldSolver"] = "true";
-  }
-
   // Handle overrides
   const overridenFFlags = fflagsConfig.get<FFlags>("override");
   if (overridenFFlags) {
@@ -401,6 +390,16 @@ const startLanguageServer = async (context: vscode.ExtensionContext) => {
 
   clientDisposables.push(...registerComputeBytecode(context, client));
   clientDisposables.push(...registerComputeCompilerRemarks(context, client));
+  clientDisposables.push(...registerRequireGraph(context, client));
+  clientDisposables.push(
+    vscode.commands.registerCommand("luau-lsp.openWalkthrough", () => {
+      return vscode.commands.executeCommand(
+        "workbench.action.openWalkthrough",
+        "JohnnyMorganz.luau-lsp#getting-started",
+        false,
+      );
+    }),
+  );
 
   console.log("LSP Setup");
   await client.start();
