@@ -110,9 +110,11 @@ private:
 
     mutable std::unordered_map<Uri, const SourceNode*, UriHash> realPathsToSourceNodes{};
     mutable std::unordered_map<Luau::ModuleName, const SourceNode*> virtualPathsToSourceNodes{};
+	mutable std::unordered_map<std::string, const SourceNode*> namesToSourceNodes{};
 
     std::optional<const SourceNode*> getSourceNodeFromVirtualPath(const Luau::ModuleName& name) const;
     std::optional<const SourceNode*> getSourceNodeFromRealPath(const Uri& name) const;
+	std::optional<const SourceNode*> getSourceNodeFromName(const std::string& name) const;
 
     static Luau::ModuleName getVirtualPathFromSourceNode(const SourceNode* sourceNode);
 

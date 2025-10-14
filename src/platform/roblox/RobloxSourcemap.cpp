@@ -466,6 +466,7 @@ void RobloxPlatform::writePathsToMap(SourceNode* node, const std::string& base)
     LUAU_TIMETRACE_SCOPE("RobloxPlatform::writePathsToMap", "LSP");
     node->virtualPath = base;
     virtualPathsToSourceNodes[base] = node;
+	namesToSourceNodes[node->name] = node;
 
     if (auto realPath = getRealPathFromSourceNode(node))
     {
@@ -486,6 +487,7 @@ void RobloxPlatform::updateSourceNodeMap(const std::string& sourceMapContents)
     sourceNodeAllocator.clear();
     realPathsToSourceNodes.clear();
     virtualPathsToSourceNodes.clear();
+	namesToSourceNodes.clear();
 
     try
     {
@@ -625,6 +627,13 @@ std::optional<const SourceNode*> RobloxPlatform::getSourceNodeFromRealPath(const
 Luau::ModuleName RobloxPlatform::getVirtualPathFromSourceNode(const SourceNode* sourceNode)
 {
     return sourceNode->virtualPath;
+}
+
+std::optional<const SourceNode*> RobloxPlatform::getSourceNodeFromName(const std::string& name) const
+{
+	if (auto it = namesToSourceNodes.find(name); it != namesToSourceNodes.end())
+		return it->second;
+	return std::nullopt;
 }
 
 std::optional<Uri> RobloxPlatform::getRealPathFromSourceNode(const SourceNode* sourceNode) const
