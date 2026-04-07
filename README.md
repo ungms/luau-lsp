@@ -1,5 +1,7 @@
-## Overture LSP
+# Overture LSP
 
+⚠️This fork is outdated and not maintained, please see [overture-vscode](https://github.com/devSparkle/overture-vscode) for the actively maintained plugin.
+---
 This is a fork of Luau LSP with changes specifically for the ungms workflow.
 
 Changes from upstream Luau LSP:
